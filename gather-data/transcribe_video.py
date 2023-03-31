@@ -5,6 +5,7 @@ import csv
 from pyannote.audio import Audio
 from pyannote.core import Segment
 import whisper
+from pyannote.audio import Pipeline
 
 
 def download_video(url, cookies_path, video_dir):
@@ -24,6 +25,11 @@ def split_wav(video_dir):
 
 def transcribe_chunk(filename, video_dir, transcription_dir, model, min_speaker, max_speaker, num_speaker):
     input_file = os.path.join(video_dir, filename)
+    speaker_diarization = Pipeline.from_pretrained("pyannote/speaker-diarization@2.1",
+                                                   use_auth_token=True)
+    who_speaks_when = speaker_diarization(
+        input_file, num_speakers=num_speaker, min_speakers=min_speaker, max_speakers=max_speaker)
+
     who_speaks_when = model.who_speaks_when(input_file, num_speaker)
     audio = Audio(sample_rate=16000, mono=True)
 
