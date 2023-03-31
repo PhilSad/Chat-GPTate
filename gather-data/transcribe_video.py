@@ -8,18 +8,23 @@ import whisper
 from pyannote.audio import Pipeline
 
 
-def download_video(url, cookies_path, video_dir):
-    cmd = f"yt-dlp -f bestaudio --cookies {cookies_path} -o {video_dir}/video.webm {url}"
+def extract_video_id(url):
+    video_id = url.split("=")[-1]
+    return video_id
+
+
+def download_video(url, cookies_path, video_dir, video_id):
+    cmd = f"yt-dlp -f bestaudio --cookies {cookies_path} -o {video_dir}/{video_id}_video.webm {url}"
     subprocess.run(cmd, shell=True, check=True)
 
 
-def convert_webm_to_wav(video_dir):
-    cmd = f"ffmpeg -i {video_dir}/video.webm -ac 1 -ar 16000 {video_dir}/video.wav"
+def convert_webm_to_wav(video_dir, video_id):
+    cmd = f"ffmpeg -i {video_dir}/{video_id}_video.webm -ac 1 -ar 16000 {video_dir}/{video_id}_video.wav"
     subprocess.run(cmd, shell=True, check=True)
 
 
-def split_wav(video_dir):
-    cmd = f"ffmpeg -i {video_dir}/video.wav -f segment -segment_time 3600 -c copy {video_dir}/chunk_%03d.wav"
+def split_wav(video_dir, video_id):
+    cmd = f"ffmpeg -i {video_dir}/{video_id}_video.wav -f segment -segment_time 3600 -c copy {video_dir}/{video_id}_chunk_%03d.wav"
     subprocess.run(cmd, shell=True, check=True)
 
 
@@ -30,7 +35,6 @@ def transcribe_chunk(filename, video_dir, transcription_dir, model, min_speaker,
     who_speaks_when = speaker_diarization(
         input_file, num_speakers=num_speaker, min_speakers=min_speaker, max_speakers=max_speaker)
 
-    who_speaks_when = model.who_speaks_when(input_file, num_speaker)
     audio = Audio(sample_rate=16000, mono=True)
 
     with open(os.path.join(transcription_dir, f"{filename}_transcription.csv"), "w", newline="") as csvfile:
@@ -73,9 +77,11 @@ def main():
 
     model = whisper.load_model(args.model)
 
-    download_video(args.url, args.cookies, args.video_dir)
-    convert_webm_to_wav(args.video_dir)
-    split_wav(args.video_dir)
+    video_id = extract_video_id(args.url)
+
+    download_video(args.url, args.cookies, args.video_dir, video_id)
+    convert_webm_to_wav(args.video_dir, video_id)
+    split_wav(args.video_dir, video_id)
 
     for chunk_filename in sorted(os.listdir(args.video_dir)):
         if chunk_filename.startswith("chunk_") and chunk_filename.endswith(".wav"):
